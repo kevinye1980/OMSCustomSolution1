@@ -2,5 +2,23 @@
   "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
+    "omsLogAnalyticsWorkspaceName": {
+      "value": "OMS-WS-KY-111"
+    },
+    "omsLogAnalyticsRegion": {
+      "value": "eastus"
+    },
+    "omsLogAnalyticsSku": {
+      "value": "free"
+    },
+    "omsAutomationAccountName": {
+      "value": "omsautoacct"
+    },
+    "omsAutomationRegion": {
+      "value": "eastus2"
+    },
+    "omsSolutionName": {
+      "value": "Kevinlab Linux Performance Monitoring"
+    }
   }
-}
+}            

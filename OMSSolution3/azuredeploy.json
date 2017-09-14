@@ -1,8 +1,322 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
-  "parameters": {},
-  "variables": {},
-  "resources": [],
+  "parameters": {
+    "omsLogAnalyticsWorkspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of existing OMS Log Analytics workspace."
+      }
+    },
+    "omsLogAnalyticsRegion": {
+      "type": "string",
+      "defaultValue": "eastus",
+      "allowedValues": [
+        "westeurope",
+        "eastus",
+        "southeastasia",
+        "australiasoutheast",
+        "wescentralus"
+      ],
+      "metadata": {
+        "description": "Specify the Azure Region for your new or existing OMS workspace"
+      }
+    },
+    "omsLogAnalyticsSku": {
+      "type": "string",
+      "defaultValue": "free",
+      "allowedValues": [
+        "free",
+        "standalone",
+        "pernode"
+      ],
+      "metadata": {
+        "description": "Specify the SKU for Log Analytics"
+      }
+    },
+    "omsAutomationAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "A valid Azure Automation account name"
+      }
+    },
+    "omsAutomationRegion": {
+      "type": "string",
+      "defaultValue": "eastus2",
+      "allowedValues": [
+        "westeurope",
+        "southeastasia",
+        "eastus2",
+        "southcentralus",
+        "japaneast",
+        "southeastasia",
+        "southcentralus",
+        "northeurope",
+        "canadacentral",
+        "australiasoutheast",
+        "centralindia",
+        "japaneast"
+      ],
+      "metadata": {
+        "description": "Specify the Azure Region for your OMS Automation Account"
+      }
+    },
+    "omsDataIngestionFrequency": {
+      "type": "int",
+      "defaultValue": 10,
+      "allowedValues": [
+        10,
+        30,
+        60
+      ],
+      "metadata": {
+        "description": "The interval in seconds at which performance data should be ingested by OMS Log Analytics. For best results leave default value of 10 seconds.",
+        "category": "Performance data ingestion interval"
+      }
+    },
+    "omsSolutionName": {
+      "type": "string",
+      "defaultValue": "Linux Server Performance Solution",
+      "metadata": {
+        "description": "Name of the solution"
+      }
+    }
+  },
+  "variables": {
+    "solutionId": "[concat(parameters('omsSolutionName'), ' [' , parameters('omsLogAnalyticsWorkspaceName'), ']')]",
+    "solutionVersion": "1.0.0",
+    "solutionPublisher": "Kevinlab.com",
+    "solutionProduct": "[replace(concat(variables('solutionPublisher'),parameters('omsSolutionName')),' ','')]",
+    "solutionPromotionCode": "",
+    "solutionDescription": "OMS Solution for monitoring and visibility of Linux Server. Developed by Kevin Ye.",
+    "solutionAuthor": "kevinye@kevinlab.com"
+  },
+  "resources": [
+    {
+      "apiVersion": "2015-11-01-preview",
+      "name": "[parameters('omsLogAnalyticsWorkspaceName')]",
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "location": "[parameters('omsLogAnalyticsRegion')]",
+      "resources": [
+        {
+          "apiVersion": "2015-11-01-preview",
+          "name": "linxServerOSPerfCounter",
+          "type": "datasources",
+          "kind": "LinuxPerformanceObject",
+          "properties": {
+            "performanceCounters": [
+              {
+                "counterName": "% Available Memory"
+              }
+            ],
+            "objectName": "Memory",
+            "instanceName": "*",
+            "intervalSeconds": "[parameters('omsDataIngestionFrequency')]"
+          },
+          "dependsOn": [
+            "[concat('Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'))]"
+          ]
+        },
+        {
+          "apiVersion": "2015-11-01-preview",
+          "name": "linuxSavedSearch1",
+          "type": "savedSearches",
+          "properties": {
+            "DisplayName": "Average % Available Memory displayed as Line Chart",
+            "Query": "Type:Perf (ObjectName=Memory) (CounterName=\"% Available Memory\") Computer IN {Type=Heartbeat OSType=Linux | Distinct Computer} | Measure Avg(CounterValue) as AVGAvailableFreeMemoryInPercent by Computer  | display LineChart",
+            "Description": "Shows Line Chart of average % Available Memory counter for each computer.",
+            "Category": "Linux Server Performance",
+            "ETag": "*"
+          },
+          "dependsOn": [
+            "[concat('Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'))]"
+          ]
+        },
+        {
+          "apiVersion": "2015-11-01-preview",
+          "name": "linuxSavedSearch2",
+          "type": "savedSearches",
+          "properties": {
+            "DisplayName": "Average % Available Memory sorted by ascending value",
+            "Query": "Type:Perf (ObjectName=Memory) (CounterName=\"Available Memory\") Computer IN {Type=Heartbeat OSType=Linux | Distinct Computer} | Measure Avg(CounterValue) as AVGAvailableFreeMemoryInPercent by Computer | Sort AVGAvailableFreeMemoryInPercent ASC",
+            "Description": "Shows average % Available Memory counter for each computer.",
+            "Category": "Linux Server Performance",
+            "ETag": "*"
+          },
+          "dependsOn": [
+            "[concat('Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'))]"
+          ]
+        },
+        {
+          "apiVersion": "2015-11-01-preview",
+          "name": "[variables('solutionId')]",
+          "type": "views",
+          "location": "[parameters('omsLogAnalyticsRegion')]",
+          "id": "[resourceId('Microsoft.OperationalInsights/workspaces/views/', parameters('omsLogAnalyticsWorkspaceName'), variables('solutionId'))]",
+          "dependsOn": [
+            "[concat('Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'))]"
+          ],
+          "properties": {
+            "Id": "[variables('solutionid')]",
+            "Name": "[variables('solutionid')]",
+            "DisplayName": "[parameters('omsSolutionName')]",
+            "Description": "[variables('solutionDescription')]",
+            "Version": 0,
+            "Author": "[variables('solutionAuthor')]",
+            "Source": "Local",
+            "Dashboard": [
+              {
+                "Id": "InformationBlade",
+                "Type": "Blade",
+                "Version": 0,
+                "Configuration": {
+                  "General": {
+                    "Title": "Information",
+                    "NewGroup": false,
+                    "Color": "#ff8c00"
+                  },
+                  "Header": {
+                    "Image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAztJREFUeNrUmktoE1EUhqexKj4zJWoaqIpVaVGxKr6ogsaNbhS0YKkKFeKmriwFEaXYnY+FYjeCbmtRRBeuXIlLMe1CXGlduBOt0rS1FaF2/A+ciWMy0yT3njvN/PBtMuHc8899zJ1zp8ZxHEtAKXAE7AdNYBOwGVKO+QQ+gDfgFfii23CNhoHV4CyzWzHGEBgEA2BUKQIZqJAG0A+mHTn9AvfB2krzqeTPi8AVMOWYE92UPrBY2kAzeOeEp/fcZsncYmWMsjaQBdut8LSN22zTnQMXwYwzf5rhHJSGUJdTPeoKyjNoGT0JnoIFCt1/GXwOuNYIbirE/APawbNyhlATmNS4W4fm6NW0Rlxa/baWmsQLwROwXGMC2orXSmkpeMw55lVooAe0aK4gcUMG3NWpJ8hAA+gVWAJtRXPlqpdzLTJwlbvJpAFbID7leK3QwCpwXughFDdsgNTJOecN0A9LhIKbHkIW59rpNdAhuA2wQ+gB0hnXQBLsiqCBnaCeDKTpxUYwcDwkA5TzYTLQKryTDGMOuDoQ44eDFcEhRNpCBtYJB42HaGC9O4klVRuwl1opPNdIa2KaG7dK7nSdgXZWxCwzskOYwPmtxISBuPEQxj9pnAx8NRC4LiQDo2RgJMI98DHGtUpppbgXvNSbMEAv9af5NTKKaicDtK/+ZmCNNi0qpyRpCH3nKnHUNOROYtIj4eDTXP9JMzfAlHAbg966UEKwXE71m70+NSH67bdgFTvhrQv9AA+E7sw98Nbnd/rtjlAbDznn/ypzKc2KnKuDc1TmWgXiT3KuRZU5Oq+6LrQ6BGlWIH6f5TlbK9zM9YNhzQaOKV4rR8M8RD23q7ibG0FOo4snwA6fuC18TVWU08Zyy+snwHNLrbxu8ZJ5F7zkIXUUdNP+XTEelddPgRfFAzZ4wmXAbBUcblAOF1QP+TJVcMSU0T2lPA7G5iH5HLctcsy6AWRDTD7LbYoedNeCS2DcYOK0SnVzW+In9S5JcEtzSfRL/DbHrigfnY896C2LPvQ4B/b4PBRLiZ7KdJg9wLvhMaUCqdDnNgkqtIJ9oBlspqITWMYvSj/5pWnE+ve5zev8hkxDfwUYAP0NkvYTPlJVAAAAAElFTkSuQmCC",
+                    "Label": "Linux Server OS",
+                    "Link": {
+                      "Label": "More info",
+                      "Url": "https://azure.microsoft.com/en-us/documentation/articles/log-analytics-view-designer-parts/#information-part"
+                    }
+                  },
+                  "List": [
+                    {
+                      "Title": "Description",
+                      "Content": "Linux Server OS is an OMS (Operations Management Suite) solution aims to provide monitoring, trends\nand visibility for Linux Server OS. The visualization and the queries will help you track health,\nperformance and trends of Linux Server. The solution consists of the following resources once\ndeployed on OMS workspace:\n\n- Linux performance counters configuration\n  - Memory(\\*)\\% Available Memory - 10 seconds interval recommended\n- View\n  - Linux Server tile\n  - Linux Server dashboard with 5+ blades"
+                    }
+                  ]
+                }
+              },
+              {
+                "Id": "LineChartBuilderBlade",
+                "Type": "Blade",
+                "Version": 0,
+                "Configuration": {
+                  "General": {
+                    "title": "Memory Utilization",
+                    "newGroup": false,
+                    "icon": "",
+                    "useIcon": false
+                  },
+                  "Header": {
+                    "Title": "TOP Memory Utilized Computers",
+                    "Subtitle": "by % Available Memory"
+                  },
+                  "LineChart": {
+                    "Query": "Type:Perf ObjectName=Memory CounterName=\"% Available Memory\" InstanceName=* Computer IN {Type=Heartbeat OSType=Linux | Distinct Computer}  | Measure Avg(CounterValue) as AVGAvailableFreeMemoryInMBs by Computer | sort AVGAvailableFreeMemoryInMBs ASC",
+                    "yAxis": {
+                      "isLogarithmic": false,
+                      "units": {
+                        "baseUnitType": "",
+                        "baseUnit": "",
+                        "displayUnit": ""
+                      },
+                      "customLabel": ""
+                    }
+                  },
+                  "List": {
+                    "Query": "Type:Perf ObjectName=Memory CounterName=\"% Available Memory\" InstanceName=* Computer IN {Type=Heartbeat OSType=Linux | Distinct Computer}  | Measure Avg(CounterValue) as AVGAvailableFreeMemoryInMBs by Computer | sort AVGAvailableFreeMemoryInMBs ASC",
+                    "HideGraph": false,
+                    "enableSparklines": false,
+                    "ColumnsTitle": {
+                      "Name": "Computer",
+                      "Value": "Free Memory(%)"
+                    },
+                    "Color": "#0072c6",
+                    "operation": "Last Sample",
+                    "thresholds": {
+                      "isEnabled": false,
+                      "values": [
+                        {
+                          "name": "Normal",
+                          "threshold": "Default",
+                          "color": "#009e49",
+                          "isDefault": true
+                        },
+                        {
+                          "name": "Warning",
+                          "threshold": "60",
+                          "color": "#fcd116",
+                          "isDefault": false
+                        },
+                        {
+                          "name": "Error",
+                          "threshold": "90",
+                          "color": "#ba141a",
+                          "isDefault": false
+                        }
+                      ]
+                    },
+                    "NameDSVSeparator": "",
+                    "NavigationQuery": "Type:Perf ObjectName=Memory CounterName=\"% Available Memory\" InstanceName=* Computer IN {Type=Heartbeat OSType=Linux | Distinct Computer}  | Measure Avg(CounterValue) as AVGAvailableFreeMemoryInMBs by Computer | sort AVGAvailableFreeMemoryInMBs ASC"
+                  }
+                }
+              }
+            ],
+            "OverviewTile": {
+              "Id": "LineChartCalloutBuilderTile",
+              "Type": "OverviewTile",
+              "Version": 0,
+              "Configuration": {
+                "LineChart": {
+                  "Query": "Type:Perf ObjectName=Memory CounterName=\"% Available Memory\" InstanceName=* Computer IN {Type=Heartbeat OSType=Linux | Distinct Computer}  | Measure PCT95(CounterValue) as PCT95MemPercentTime by CounterName | display LineChart",
+                  "Callout": {
+                    "Title": "PCT95 Available Memory for All Servers",
+                    "Series": "",
+                    "Operation": "Last Sample"
+                  },
+                  "yAxis": {
+                    "isLogarithmic": false,
+                    "units": {
+                      "baseUnitType": "Percentage",
+                      "baseUnit": "ZeroToOne",
+                      "displayUnit": "ZeroToOne"
+                    },
+                    "customLabel": "Memory Utilization"
+                  }
+                },
+                "Advanced": {
+                  "DataFlowVerification": {
+                    "Enabled": false,
+                    "Query": "*",
+                    "Message": ""
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.OperationsManagement/solutions",
+      "name": "[variables('solutionId')]",
+      "apiVersion": "2015-11-01-preview",
+      "location": "[parameters('omsLogAnalyticsRegion')]",
+      "plan": {
+        "name": "[variables('solutionId')]",
+        "Version": "[variables('solutionVersion')]",
+        "publisher": "[variables('solutionPublisher')]",
+        "promotionCode": "[variables('solutionPromotionCode')]",
+        "product": "[variables('solutionProduct')]"
+      },
+      "tags": {},
+      "properties": {
+        "workspaceResourceId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'))]",
+        "referencedResources": [],
+        "containedResources": [
+          "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'), '/views/', variables('solutionId'))]"
+        ]
+      },
+      "dependsOn": [
+        "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'))]",
+        "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'), '/views/', variables('solutionId'))]"
+      ]
+    }
+  ],
   "outputs": {}
 }
